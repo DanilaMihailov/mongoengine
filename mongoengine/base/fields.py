@@ -3,8 +3,20 @@ from __future__ import annotations
 import contextlib
 import operator
 import threading
+from typing_extensions import Self
 import weakref
-from typing import TYPE_CHECKING, Any, Callable, Iterable, NoReturn
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    NoReturn,
+    Protocol,
+    TypeVar,
+    cast,
+    overload,
+    runtime_checkable,
+)
 
 import pymongo
 from bson import SON, DBRef, ObjectId
@@ -38,7 +50,11 @@ def _no_dereference_for_fields(*fields):
             field._decr_no_dereference_context()
 
 
-class BaseField:
+T = TypeVar("T")
+
+
+@runtime_checkable
+class BaseField(Protocol[T]):
     """A base class for fields in a MongoDB document. Instances of this class
     may be added to subclasses of `Document` to define a document's schema.
     """
@@ -171,6 +187,12 @@ class BaseField:
     def _auto_dereference(self):
         return self.__auto_dereference and not self._no_dereference_context_is_set
 
+    @overload
+    def __get__(self, instance: None, owner) -> Self: ...
+
+    @overload
+    def __get__(self, instance: Any, owner) -> T: ...
+
     def __get__(self, instance, owner):
         """Descriptor for retrieving a value from a field in a document."""
         if instance is None:
@@ -178,7 +200,7 @@ class BaseField:
             return self
 
         # Get value from document instance if available
-        return instance._data.get(self.name)
+        return cast(T, instance._data.get(self.name))
 
     def __set__(self, instance: Any, value: Any) -> None:
         """Descriptor for assigning a value to a field in a document."""
@@ -315,7 +337,10 @@ class BaseField:
         self._set_owner_document(owner_document)
 
 
-class ComplexBaseField(BaseField):
+K = TypeVar("K")
+
+
+class ComplexBaseField(BaseField[K]):
     """Handles complex fields, such as lists / dictionaries.
 
     Allows for nesting of embedded documents inside complex types.
@@ -323,12 +348,12 @@ class ComplexBaseField(BaseField):
     items in a list / dict rather than one at a time.
     """
 
-    def __init__(self, field=None, **kwargs):
+    def __init__(self, field: K | None = None, **kwargs):
         if field is not None and not isinstance(field, BaseField):
             raise TypeError(
                 f"field argument must be a Field instance (e.g {self.__class__.__name__}(StringField()))"
             )
-        self.field = field
+        self.field: K | None = field
         super().__init__(**kwargs)
 
     @staticmethod
@@ -353,6 +378,12 @@ class ComplexBaseField(BaseField):
                 value = {key: self.field.to_python(sub) for key, sub in value.items()}
 
         return super().__set__(instance, value)
+
+    @overload
+    def __get__(self, instance: None, owner) -> Self: ...
+
+    @overload
+    def __get__(self, instance: Any, owner) -> K: ...
 
     def __get__(self, instance, owner):
         """Descriptor to automatically dereference references."""
@@ -411,7 +442,7 @@ class ComplexBaseField(BaseField):
             value._dereferenced = True
             instance._data[self.name] = value
 
-        return value
+        return cast(K, value)
 
     def to_python(self, value):
         """Convert a MongoDB-compatible type to a Python type."""
@@ -569,7 +600,7 @@ class ComplexBaseField(BaseField):
         self._owner_document = owner_document
 
 
-class ObjectIdField(BaseField):
+class ObjectIdField(BaseField[ObjectId]):
     """A field wrapper around MongoDB's ObjectIds."""
 
     def to_python(self, value):

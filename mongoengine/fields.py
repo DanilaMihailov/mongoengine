@@ -13,7 +13,7 @@ import uuid
 from inspect import isclass
 from io import BytesIO
 from operator import itemgetter
-from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar, cast, overload
 
 import gridfs
 import pymongo
@@ -129,7 +129,7 @@ def _unsaved_object_error(document):
     )
 
 
-class StringField(BaseField):
+class StringField(BaseField[str, str]):
     """A unicode string field."""
 
     def __init__(
@@ -356,7 +356,7 @@ class EmailField(StringField):
                     )
 
 
-class IntField(BaseField):
+class IntField(BaseField[int, int]):
     """32-bit integer field."""
 
     def __init__(
@@ -399,7 +399,7 @@ class IntField(BaseField):
         return super().prepare_query_value(op, int(value))
 
 
-class FloatField(BaseField):
+class FloatField(BaseField[float, float]):
     """Floating point number field."""
 
     def __init__(
@@ -446,7 +446,7 @@ class FloatField(BaseField):
         return super().prepare_query_value(op, float(value))
 
 
-class DecimalField(BaseField):
+class DecimalField(BaseField[float, float]):
     """Disclaimer: This field is kept for historical reason but since it converts the values to float, it
     is not suitable for true decimal storage. Consider using :class:`~mongoengine.fields.Decimal128Field`.
 
@@ -535,7 +535,7 @@ class DecimalField(BaseField):
         return super().prepare_query_value(op, self.to_mongo(value))
 
 
-class BooleanField(BaseField):
+class BooleanField(BaseField[bool, bool]):
     """Boolean field type."""
 
     def to_python(self, value):
@@ -550,7 +550,7 @@ class BooleanField(BaseField):
             self.error("BooleanField only accepts boolean values")
 
 
-class DateTimeField(BaseField):
+class DateTimeField(BaseField[datetime.datetime, datetime.datetime]):
     """Datetime field.
 
     Uses the python-dateutil library if available alternatively use time.strptime
@@ -740,12 +740,15 @@ class ComplexDateTimeField(StringField):
         return super().prepare_query_value(op, self._convert_from_datetime(value))
 
 
-class EmbeddedDocumentField(BaseField):
+K = TypeVar("K")
+
+
+class EmbeddedDocumentField(BaseField[K, K]):
     """An embedded document field - with a declared document_type.
     Only valid values are subclasses of :class:`~mongoengine.EmbeddedDocument`.
     """
 
-    def __init__(self, document_type: type[EmbeddedDocument] | str, **kwargs: Any):
+    def __init__(self, document_type: type[K] | str, **kwargs: Any):
         if not (
             isinstance(document_type, str)
             or issubclass(document_type, EmbeddedDocument)
@@ -759,7 +762,7 @@ class EmbeddedDocumentField(BaseField):
         super().__init__(**kwargs)
 
     @property
-    def document_type(self) -> type[Any]:
+    def document_type(self) -> type[K]:
         if isinstance(self.document_type_obj, str):
             if self.document_type_obj == RECURSIVE_REFERENCE_CONSTANT:
                 resolved_document_type = self.owner_document
@@ -824,7 +827,7 @@ class EmbeddedDocumentField(BaseField):
         return self.to_mongo(value)
 
 
-class GenericEmbeddedDocumentField(BaseField):
+class GenericEmbeddedDocumentField(BaseField[K, K]):
     """A generic embedded document field - allows any
     :class:`~mongoengine.EmbeddedDocument` to be stored.
 
@@ -877,7 +880,7 @@ class GenericEmbeddedDocumentField(BaseField):
         return data
 
 
-class DynamicField(BaseField):
+class DynamicField(BaseField[Any, Any]):
     """A truly dynamic field type capable of handling different and varying
     types of data.
 
@@ -940,7 +943,12 @@ class DynamicField(BaseField):
             value.validate(clean=clean)
 
 
-class ListField(ComplexBaseField):
+A = TypeVar("A")
+B = TypeVar("B")
+C = TypeVar("C")
+
+
+class ListField(ComplexBaseField[C, B, A]):
     """A list field that wraps a standard field, allowing multiple instances
     of the field to be used as a list in the database.
 
@@ -950,12 +958,36 @@ class ListField(ComplexBaseField):
         Required means it cannot be empty - as the default for ListFields is []
     """
 
+    @overload
+    def __init__(
+        self,
+        field: EmbeddedDocumentField[C] | None = None,
+        *,
+        max_length=None,
+        **kwargs,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        field: C | None = None,
+        *,
+        max_length=None,
+        **kwargs,
+    ): ...
+
     def __init__(self, field=None, *, max_length=None, **kwargs):
         self.max_length = max_length
         kwargs.setdefault("default", list)
         super().__init__(field=field, **kwargs)
 
-    def __get__(self, instance: Any, owner: Any) -> list[dict[str, Any]] | Self:
+    @overload
+    def __get__(self, instance: None, owner) -> Self: ...
+
+    @overload
+    def __get__(self, instance: Any, owner) -> list[C]: ...
+
+    def __get__(self, instance: Any, owner: Any):
         if instance is None:
             # Document class being used rather than a document object
             return self
@@ -1069,7 +1101,10 @@ def key_starts_with_dollar(d):
             return True
 
 
-class DictField(ComplexBaseField):
+D = TypeVar("D")
+
+
+class DictField(ComplexBaseField[dict[str, D], dict[str, D], dict[str, D]]):
     """A dictionary field that wraps a standard Python dictionary. This is
     similar to an embedded document, but the structure is not defined.
 
@@ -1077,7 +1112,7 @@ class DictField(ComplexBaseField):
         Required means it cannot be empty - as the default for DictFields is {}
     """
 
-    def __init__(self, field: Any | None = None, *args, **kwargs):
+    def __init__(self, field: D | None = None, *args, **kwargs):
         kwargs.setdefault("default", dict)
         super().__init__(*args, field=field, **kwargs)
         self.set_auto_dereferencing(False)
@@ -1123,20 +1158,20 @@ class DictField(ComplexBaseField):
         return super().prepare_query_value(op, value)
 
 
-class MapField(DictField):
+class MapField(DictField[D]):
     """A field that maps a name to a specified field type. Similar to
     a DictField, except the 'value' of each item must match the specified
     field type.
     """
 
-    def __init__(self, field=None, *args, **kwargs):
+    def __init__(self, field: D | None = None, *args, **kwargs):
         # XXX ValidationError raised outside the "validate" method.
         if not isinstance(field, BaseField):
             self.error("Argument to MapField constructor must be a valid field")
         super().__init__(field=field, *args, **kwargs)
 
 
-class ReferenceField(BaseField):
+class ReferenceField(BaseField[K, K]):
     """A reference to a document that will be automatically dereferenced on
     access (lazily).
 
@@ -1178,7 +1213,7 @@ class ReferenceField(BaseField):
 
     def __init__(
         self,
-        document_type: type[_T] | str,
+        document_type: type[K] | str,
         dbref: bool = False,
         reverse_delete_rule=DO_NOTHING,
         **kwargs,
@@ -1228,7 +1263,13 @@ class ReferenceField(BaseField):
 
         return ref_cls._from_son(dereferenced_son)
 
-    def __get__(self, instance: Any, owner: Any) -> Any:
+    @overload
+    def __get__(self, instance: None, owner) -> Self: ...
+
+    @overload
+    def __get__(self, instance: Any, owner) -> K: ...
+
+    def __get__(self, instance: Any, owner: Any):
         """Descriptor to allow lazy dereferencing."""
         if instance is None:
             # Document class being used rather than a document object
@@ -1247,7 +1288,7 @@ class ReferenceField(BaseField):
 
             instance._data[self.name] = self._lazy_load_ref(cls, ref_value)
 
-        return super().__get__(instance, owner)
+        return cast(K, super().__get__(instance, owner))
 
     def to_mongo(self, document):
         if isinstance(document, DBRef):
@@ -1311,12 +1352,12 @@ class ReferenceField(BaseField):
         return self.document_type._fields.get(member_name)
 
 
-class CachedReferenceField(BaseField):
+class CachedReferenceField(BaseField[K, K]):
     """A referencefield with cache fields to purpose pseudo-joins"""
 
     def __init__(
         self,
-        document_type: str | type[Document],
+        document_type: str | type[K],
         fields: Iterable[str] | None = None,
         auto_sync: bool = True,
         **kwargs,
@@ -1391,6 +1432,12 @@ class CachedReferenceField(BaseField):
             raise DoesNotExist(f"Trying to dereference unknown document {dbref}")
 
         return ref_cls._from_son(dereferenced_son)
+
+    @overload
+    def __get__(self, instance: None, owner) -> Self: ...
+
+    @overload
+    def __get__(self, instance: Any, owner) -> K: ...
 
     def __get__(self, instance, owner):
         if instance is None:
