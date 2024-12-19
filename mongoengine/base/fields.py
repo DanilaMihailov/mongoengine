@@ -74,12 +74,12 @@ class BaseField(Protocol[T]):
         self,
         db_field: str | None = None,
         required: bool = False,
-        default: Any | None | Callable[[], Any] = None,
+        default: T | None | Callable[[], T] = None,
         unique: bool = False,
         unique_with: str | Iterable[str] | None = None,
         primary_key: bool = False,
-        validation: Callable[[Any], None] | None = None,
-        choices: Any = None,
+        validation: Callable[[T], None] | None = None,
+        choices: list[T] | None = None,
         null: bool = False,
         sparse: bool = False,
         **kwargs: Any,
@@ -202,7 +202,7 @@ class BaseField(Protocol[T]):
         # Get value from document instance if available
         return cast(T, instance._data.get(self.name))
 
-    def __set__(self, instance: Any, value: Any) -> None:
+    def __set__(self, instance: Any, value: T) -> None:
         """Descriptor for assigning a value to a field in a document."""
         # If setting to None and there is a default value provided for this
         # field, then set the value to the default value.
@@ -274,11 +274,11 @@ class BaseField(Protocol[T]):
             self.validate(value)
         return value
 
-    def validate(self, value: Any, clean: bool = True) -> None:
+    def validate(self, value: T, clean: bool = True) -> None:
         """Perform validation on a value."""
         pass
 
-    def _validate_choices(self, value):
+    def _validate_choices(self, value: T):
         Document = _import_class("Document")
         EmbeddedDocument = _import_class("EmbeddedDocument")
 
@@ -367,7 +367,7 @@ class ComplexBaseField(BaseField[K]):
         )
         return documents
 
-    def __set__(self, instance, value):
+    def __set__(self, instance, value: K):
         # Some fields e.g EnumField are converted upon __set__
         # So it is fair to mimic the same behavior when using e.g ListField(EnumField)
         EnumField = _import_class("EnumField")

@@ -1037,8 +1037,8 @@ class ListField(ComplexBaseField[C, B, A]):
 
 
 class EmbeddedDocumentListField(
-    ListField,
-    Generic[_T],
+    ListField[K, K, K],
+    Generic[_T, K],
 ):
     """A :class:`~mongoengine.ListField` designed specially to hold a list of
     embedded documents to provide additional query helpers.
@@ -1048,7 +1048,7 @@ class EmbeddedDocumentListField(
         :class:`~mongoengine.EmbeddedDocument`.
     """
 
-    def __init__(self, document_type, **kwargs):
+    def __init__(self, document_type: type[K], **kwargs):
         """
         :param document_type: The type of
          :class:`~mongoengine.EmbeddedDocument` the list will hold.
