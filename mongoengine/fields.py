@@ -943,12 +943,10 @@ class DynamicField(BaseField[Any, Any]):
             value.validate(clean=clean)
 
 
-A = TypeVar("A")
-B = TypeVar("B")
 C = TypeVar("C")
 
 
-class ListField(ComplexBaseField[C, B, A]):
+class ListField(ComplexBaseField[list[C], C, C]):
     """A list field that wraps a standard field, allowing multiple instances
     of the field to be used as a list in the database.
 
@@ -1037,7 +1035,7 @@ class ListField(ComplexBaseField[C, B, A]):
 
 
 class EmbeddedDocumentListField(
-    ListField[K, K, K],
+    ListField[K],
     Generic[_T, K],
 ):
     """A :class:`~mongoengine.ListField` designed specially to hold a list of
@@ -1104,7 +1102,7 @@ def key_starts_with_dollar(d):
 D = TypeVar("D")
 
 
-class DictField(ComplexBaseField[dict[str, D], dict[str, D], dict[str, D]]):
+class DictField(ComplexBaseField[dict[str, D], D, D]):
     """A dictionary field that wraps a standard Python dictionary. This is
     similar to an embedded document, but the structure is not defined.
 
@@ -1520,7 +1518,7 @@ class CachedReferenceField(BaseField[K, K]):
             self.owner_document.objects(**filter_kwargs).update(**update_kwargs)
 
 
-class GenericReferenceField(BaseField):
+class GenericReferenceField(BaseField[K, K]):
     """A reference to *any* :class:`~mongoengine.document.Document` subclass
     that will be automatically dereferenced on access (lazily).
 
@@ -1630,7 +1628,7 @@ class GenericReferenceField(BaseField):
         return self.to_mongo(value)
 
 
-class BinaryField(BaseField):
+class BinaryField(BaseField[bytes, bytes]):
     """A binary data field."""
 
     def __init__(self, max_bytes: int | None = None, **kwargs):
@@ -1662,7 +1660,7 @@ class BinaryField(BaseField):
         return super().prepare_query_value(op, self.to_mongo(value))
 
 
-class EnumField(BaseField):
+class EnumField(BaseField[K, K]):
     """Enumeration Field. Values are stored underneath as is,
     so it will only work with simple types (str, int, etc) that
     are bson encodable

@@ -9,13 +9,12 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Generic,
     Iterable,
     NoReturn,
-    Protocol,
     TypeVar,
     cast,
     overload,
-    runtime_checkable,
 )
 
 import pymongo
@@ -53,8 +52,7 @@ def _no_dereference_for_fields(*fields):
 T = TypeVar("T")
 
 
-@runtime_checkable
-class BaseField(Protocol[T]):
+class BaseField(Generic[T]):
     """A base class for fields in a MongoDB document. Instances of this class
     may be added to subclasses of `Document` to define a document's schema.
     """
@@ -248,11 +246,11 @@ class BaseField(Protocol[T]):
         field_name = field_name if field_name else self.name
         raise ValidationError(message, errors=errors, field_name=field_name)
 
-    def to_python(self, value: Any) -> Any:
+    def to_python(self, value: Any) -> T:
         """Convert a MongoDB-compatible type to a Python type."""
         return value
 
-    def to_mongo(self, value: Any) -> Any:
+    def to_mongo(self, value: T) -> Any:
         """Convert a Python type to a MongoDB-compatible type."""
         return self.to_python(value)
 
@@ -297,7 +295,7 @@ class BaseField(Protocol[T]):
             if len(set(values) - set(choice_list)):
                 self.error("Value must be one of %s" % str(choice_list))
 
-    def _validate(self, value, **kwargs):
+    def _validate(self, value: T, **kwargs):
         # Check the Choices Constraint
         if self.choices:
             self._validate_choices(value)
@@ -337,10 +335,11 @@ class BaseField(Protocol[T]):
         self._set_owner_document(owner_document)
 
 
-K = TypeVar("K")
+K = TypeVar("K")  # inner type
+OT = TypeVar("OT")  # outer type
 
 
-class ComplexBaseField(BaseField[K]):
+class ComplexBaseField(Generic[OT, K], BaseField[K]):
     """Handles complex fields, such as lists / dictionaries.
 
     Allows for nesting of embedded documents inside complex types.
@@ -348,7 +347,7 @@ class ComplexBaseField(BaseField[K]):
     items in a list / dict rather than one at a time.
     """
 
-    def __init__(self, field: K | None = None, **kwargs):
+    def __init__(self, field: OT | None = None, **kwargs):
         if field is not None and not isinstance(field, BaseField):
             raise TypeError(
                 f"field argument must be a Field instance (e.g {self.__class__.__name__}(StringField()))"
@@ -367,7 +366,7 @@ class ComplexBaseField(BaseField[K]):
         )
         return documents
 
-    def __set__(self, instance, value: K):
+    def __set__(self, instance, value: OT):
         # Some fields e.g EnumField are converted upon __set__
         # So it is fair to mimic the same behavior when using e.g ListField(EnumField)
         EnumField = _import_class("EnumField")
@@ -383,7 +382,7 @@ class ComplexBaseField(BaseField[K]):
     def __get__(self, instance: None, owner) -> Self: ...
 
     @overload
-    def __get__(self, instance: Any, owner) -> K: ...
+    def __get__(self, instance: Any, owner) -> OT: ...
 
     def __get__(self, instance, owner):
         """Descriptor to automatically dereference references."""
@@ -632,7 +631,7 @@ class ObjectIdField(BaseField[ObjectId]):
             self.error("Invalid ObjectID")
 
 
-class GeoJsonBaseField(BaseField):
+class GeoJsonBaseField(BaseField[dict[str, Any]]):
     """A geo json field storing a geojson style object."""
 
     _geo_index = pymongo.GEOSPHERE
