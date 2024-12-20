@@ -1181,7 +1181,7 @@ class MapField(DictField[D]):
 R = TypeVar("R")
 
 
-class ReferenceField(BaseField[type[R]]):
+class ReferenceField(Generic[R], BaseField[R]):
     """A reference to a document that will be automatically dereferenced on
     access (lazily).
 
@@ -1223,7 +1223,7 @@ class ReferenceField(BaseField[type[R]]):
 
     def __init__(
         self,
-        document_type: R | str,
+        document_type: type[R] | str,
         dbref: bool = False,
         reverse_delete_rule=DO_NOTHING,
         **kwargs,
@@ -1257,7 +1257,7 @@ class ReferenceField(BaseField[type[R]]):
         super().__init__(**kwargs)
 
     @property
-    def document_type(self):
+    def document_type(self) -> type[R]:
         if isinstance(self.document_type_obj, str):
             if self.document_type_obj == RECURSIVE_REFERENCE_CONSTANT:
                 self.document_type_obj = self.owner_document
@@ -1266,7 +1266,7 @@ class ReferenceField(BaseField[type[R]]):
         return self.document_type_obj
 
     @staticmethod
-    def _lazy_load_ref(ref_cls, dbref):
+    def _lazy_load_ref(ref_cls, dbref) -> R:
         dereferenced_son = ref_cls._get_db().dereference(dbref, session=_get_session())
         if dereferenced_son is None:
             raise DoesNotExist(f"Trying to dereference unknown document {dbref}")
@@ -1367,7 +1367,7 @@ class CachedReferenceField(BaseField[K]):
 
     def __init__(
         self,
-        document_type: str | K,
+        document_type: str | type[K],
         fields: Iterable[str] | None = None,
         auto_sync: bool = True,
         **kwargs,
