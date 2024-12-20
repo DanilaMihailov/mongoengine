@@ -129,7 +129,7 @@ def _unsaved_object_error(document):
     )
 
 
-class StringField(BaseField[str, str]):
+class StringField(BaseField[str]):
     """A unicode string field."""
 
     def __init__(
@@ -356,7 +356,7 @@ class EmailField(StringField):
                     )
 
 
-class IntField(BaseField[int, int]):
+class IntField(BaseField[int]):
     """32-bit integer field."""
 
     def __init__(
@@ -446,7 +446,7 @@ class FloatField(BaseField[float, float]):
         return super().prepare_query_value(op, float(value))
 
 
-class DecimalField(BaseField[float, float]):
+class DecimalField(BaseField[float]):
     """Disclaimer: This field is kept for historical reason but since it converts the values to float, it
     is not suitable for true decimal storage. Consider using :class:`~mongoengine.fields.Decimal128Field`.
 
@@ -550,7 +550,7 @@ class BooleanField(BaseField[bool, bool]):
             self.error("BooleanField only accepts boolean values")
 
 
-class DateTimeField(BaseField[datetime.datetime, datetime.datetime]):
+class DateTimeField(BaseField[datetime.datetime]):
     """Datetime field.
 
     Uses the python-dateutil library if available alternatively use time.strptime
@@ -743,7 +743,7 @@ class ComplexDateTimeField(StringField):
 K = TypeVar("K")
 
 
-class EmbeddedDocumentField(BaseField[K, K]):
+class EmbeddedDocumentField(Generic[K], BaseField[K]):
     """An embedded document field - with a declared document_type.
     Only valid values are subclasses of :class:`~mongoengine.EmbeddedDocument`.
     """
@@ -880,7 +880,7 @@ class GenericEmbeddedDocumentField(BaseField[K, K]):
         return data
 
 
-class DynamicField(BaseField[Any, Any]):
+class DynamicField(BaseField[Any]):
     """A truly dynamic field type capable of handling different and varying
     types of data.
 
@@ -946,7 +946,7 @@ class DynamicField(BaseField[Any, Any]):
 C = TypeVar("C")
 
 
-class ListField(ComplexBaseField[list[C], C, C]):
+class ListField(ComplexBaseField[list[C], C]):
     """A list field that wraps a standard field, allowing multiple instances
     of the field to be used as a list in the database.
 
@@ -960,6 +960,15 @@ class ListField(ComplexBaseField[list[C], C, C]):
     def __init__(
         self,
         field: EmbeddedDocumentField[C] | None = None,
+        *,
+        max_length=None,
+        **kwargs,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        field: ReferenceField[C] | None = None,
         *,
         max_length=None,
         **kwargs,
@@ -1102,7 +1111,7 @@ def key_starts_with_dollar(d):
 D = TypeVar("D")
 
 
-class DictField(ComplexBaseField[dict[str, D], D, D]):
+class DictField(ComplexBaseField[dict[str, D], D]):
     """A dictionary field that wraps a standard Python dictionary. This is
     similar to an embedded document, but the structure is not defined.
 
@@ -1169,7 +1178,10 @@ class MapField(DictField[D]):
         super().__init__(field=field, *args, **kwargs)
 
 
-class ReferenceField(BaseField[K, K]):
+R = TypeVar("R")
+
+
+class ReferenceField(BaseField[type[R]]):
     """A reference to a document that will be automatically dereferenced on
     access (lazily).
 
@@ -1211,7 +1223,7 @@ class ReferenceField(BaseField[K, K]):
 
     def __init__(
         self,
-        document_type: type[K] | str,
+        document_type: R | str,
         dbref: bool = False,
         reverse_delete_rule=DO_NOTHING,
         **kwargs,
@@ -1265,7 +1277,7 @@ class ReferenceField(BaseField[K, K]):
     def __get__(self, instance: None, owner) -> Self: ...
 
     @overload
-    def __get__(self, instance: Any, owner) -> K: ...
+    def __get__(self, instance: Any, owner) -> R: ...
 
     def __get__(self, instance: Any, owner: Any):
         """Descriptor to allow lazy dereferencing."""
@@ -1286,7 +1298,7 @@ class ReferenceField(BaseField[K, K]):
 
             instance._data[self.name] = self._lazy_load_ref(cls, ref_value)
 
-        return cast(K, super().__get__(instance, owner))
+        return cast(R, super().__get__(instance, owner))
 
     def to_mongo(self, document):
         if isinstance(document, DBRef):
@@ -1350,12 +1362,12 @@ class ReferenceField(BaseField[K, K]):
         return self.document_type._fields.get(member_name)
 
 
-class CachedReferenceField(BaseField[K, K]):
+class CachedReferenceField(BaseField[K]):
     """A referencefield with cache fields to purpose pseudo-joins"""
 
     def __init__(
         self,
-        document_type: str | type[K],
+        document_type: str | K,
         fields: Iterable[str] | None = None,
         auto_sync: bool = True,
         **kwargs,
@@ -1518,7 +1530,7 @@ class CachedReferenceField(BaseField[K, K]):
             self.owner_document.objects(**filter_kwargs).update(**update_kwargs)
 
 
-class GenericReferenceField(BaseField[K, K]):
+class GenericReferenceField(BaseField[K]):
     """A reference to *any* :class:`~mongoengine.document.Document` subclass
     that will be automatically dereferenced on access (lazily).
 
@@ -1628,7 +1640,7 @@ class GenericReferenceField(BaseField[K, K]):
         return self.to_mongo(value)
 
 
-class BinaryField(BaseField[bytes, bytes]):
+class BinaryField(BaseField[bytes]):
     """A binary data field."""
 
     def __init__(self, max_bytes: int | None = None, **kwargs):
@@ -1660,7 +1672,7 @@ class BinaryField(BaseField[bytes, bytes]):
         return super().prepare_query_value(op, self.to_mongo(value))
 
 
-class EnumField(BaseField[K, K]):
+class EnumField(BaseField[K]):
     """Enumeration Field. Values are stored underneath as is,
     so it will only work with simple types (str, int, etc) that
     are bson encodable
@@ -1905,7 +1917,7 @@ class GridFSProxy:
             self.instance._mark_as_changed(self.key)
 
 
-class FileField(BaseField):
+class FileField(BaseField[GridFSProxy]):
     """A GridFS storage field."""
 
     proxy_class = GridFSProxy
@@ -2157,7 +2169,7 @@ class ImageField(FileField):
         super().__init__(collection_name=collection_name, **kwargs)
 
 
-class SequenceField(BaseField):
+class SequenceField(BaseField[int]):
     """Provides a sequential counter see:
      https://www.mongodb.com/docs/manual/reference/method/ObjectId/#ObjectIDs-SequenceNumbers
 
@@ -2294,7 +2306,7 @@ class SequenceField(BaseField):
         return value
 
 
-class UUIDField(BaseField):
+class UUIDField(BaseField[uuid.UUID]):
     """A UUID field."""
 
     _binary = None
@@ -2487,7 +2499,7 @@ class MultiPolygonField(GeoJsonBaseField):
     _type = "MultiPolygon"
 
 
-class LazyReferenceField(BaseField):
+class LazyReferenceField(BaseField[K]):
     """A really lazy reference to a document.
     Unlike the :class:`~mongoengine.fields.ReferenceField` it will
     **not** be automatically (lazily) dereferenced on access.
@@ -2498,7 +2510,7 @@ class LazyReferenceField(BaseField):
 
     def __init__(
         self,
-        document_type: type[EmbeddedDocument] | str,
+        document_type: type[K] | str,
         passthrough: bool = False,
         dbref: bool = False,
         reverse_delete_rule: int = DO_NOTHING,
