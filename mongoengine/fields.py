@@ -956,44 +956,7 @@ class ListField(ComplexBaseField[list[C], C]):
         Required means it cannot be empty - as the default for ListFields is []
     """
 
-    @overload
-    def __init__(
-        self,
-        field: EmbeddedDocumentField[C] | None = None,
-        *,
-        max_length=None,
-        **kwargs,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        field: ReferenceField[C] | None = None,
-        *,
-        max_length=None,
-        **kwargs,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        field: BaseField[C] | None = None,
-        *,
-        max_length=None,
-        **kwargs,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        field: C | None = None,
-        *,
-        max_length=None,
-        **kwargs,
-    ): ...
-
-    def __init__(self, field=None, *, max_length=None, **kwargs):
-        # def __init__(self, field: C = None, *, max_length=None, **kwargs):
+    def __init__(self, field: BaseField[C] = None, *, max_length=None, **kwargs):
         self.max_length = max_length
         kwargs.setdefault("default", list)
         super().__init__(field=field, **kwargs)
@@ -1129,39 +1092,12 @@ class DictField(ComplexBaseField[dict[str, D], D]):
         Required means it cannot be empty - as the default for DictFields is {}
     """
 
-    @overload
-    def __init__(
-        self,
-        field: EmbeddedDocumentField[C] | None = None,
-        *args,
-        **kwargs,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        field: ReferenceField[C] | None = None,
-        *args,
-        **kwargs,
-    ): ...
-
-    @overload
     def __init__(
         self,
         field: BaseField[C] | None = None,
         *args,
         **kwargs,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        field: C | None = None,
-        *args,
-        **kwargs,
-    ): ...
-
-    def __init__(self, field=None, *args, **kwargs):
+    ):
         kwargs.setdefault("default", dict)
         super().__init__(*args, field=field, **kwargs)
         self.set_auto_dereferencing(False)
