@@ -1094,7 +1094,7 @@ class DictField(ComplexBaseField[dict[str, D], D]):
 
     def __init__(
         self,
-        field: BaseField[C] | None = None,
+        field: BaseField[D] | None = None,
         *args,
         **kwargs,
     ):
@@ -1149,7 +1149,7 @@ class MapField(DictField[D]):
     field type.
     """
 
-    def __init__(self, field: D | None = None, *args, **kwargs):
+    def __init__(self, field: BaseField[D] | None = None, *args, **kwargs):
         # XXX ValidationError raised outside the "validate" method.
         if not isinstance(field, BaseField):
             self.error("Argument to MapField constructor must be a valid field")

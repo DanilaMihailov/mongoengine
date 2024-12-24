@@ -441,7 +441,7 @@ class ComplexBaseField(Generic[OT, K], BaseField[K]):
             value._dereferenced = True
             instance._data[self.name] = value
 
-        return cast(K, value)
+        return value
 
     def to_python(self, value):
         """Convert a MongoDB-compatible type to a Python type."""
