@@ -399,7 +399,7 @@ class IntField(BaseField[int]):
         return super().prepare_query_value(op, int(value))
 
 
-class FloatField(BaseField[float, float]):
+class FloatField(BaseField[float]):
     """Floating point number field."""
 
     def __init__(
@@ -535,7 +535,7 @@ class DecimalField(BaseField[float]):
         return super().prepare_query_value(op, self.to_mongo(value))
 
 
-class BooleanField(BaseField[bool, bool]):
+class BooleanField(BaseField[bool]):
     """Boolean field type."""
 
     def to_python(self, value):
@@ -827,7 +827,7 @@ class EmbeddedDocumentField(Generic[K], BaseField[K]):
         return self.to_mongo(value)
 
 
-class GenericEmbeddedDocumentField(BaseField[K, K]):
+class GenericEmbeddedDocumentField(BaseField[K]):
     """A generic embedded document field - allows any
     :class:`~mongoengine.EmbeddedDocument` to be stored.
 
